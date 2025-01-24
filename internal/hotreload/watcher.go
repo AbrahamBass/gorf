@@ -65,7 +65,7 @@ func HotReload(mainFile string) {
 		if cmd != nil && cmd.Process != nil {
 			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
 
-			cmd := exec.Command("netstat", "-ano", "|", "findstr", "8080")
+			cmd := exec.Command("cmd", "/C", "netstat -ano | findstr :8080")
 
 			output, err := cmd.Output()
 			if err != nil {
