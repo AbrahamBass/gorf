@@ -8,6 +8,7 @@ import (
 
 	// "syscall"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -64,6 +65,40 @@ func HotReload(mainFile string) {
 		if cmd != nil && cmd.Process != nil {
 			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
 
+			cmd := exec.Command("netstat", "-ano", "|", "findstr", "8080")
+
+			output, err := cmd.Output()
+			if err != nil {
+				log.Fatalf("Error al obtener la lista de procesos en el puerto 8080: %v", err)
+			}
+
+			processList := string(output)
+			lines := strings.Split(processList, "\n")
+			for _, line := range lines {
+				// Si la línea contiene el puerto 8080, significa que encontramos el proceso
+				if strings.Contains(line, ":8080") {
+					// El PID está en la última columna (segundo valor después de la dirección)
+					fields := strings.Fields(line)
+					if len(fields) >= 5 {
+						pid := fields[len(fields)-1] // El PID está en la última columna
+						log.Println("PID encontrado:", pid)
+
+						// Ahora matamos el proceso usando el PID
+						killCmd := exec.Command("taskkill", "/PID", pid, "/F")
+						if err := killCmd.Run(); err != nil {
+							log.Println("Error al matar el proceso:", err)
+						} else {
+							log.Println("Proceso terminado exitosamente.")
+						}
+						return // Terminamos después de matar el proceso
+					}
+				}
+			}
+
+			// if err := cmd.Process.Kill(); err != nil {
+			// 	log.Println("Error al matar proceso:", err)
+			// }
+
 			// Enviar SIGTERM
 			// if err := cmd.Process.Kill(); err != nil {
 			// 	log.Println("Error al detener el proceso:", err)
@@ -71,22 +106,22 @@ func HotReload(mainFile string) {
 
 			// time.Sleep(1 * time.Second)
 
-			if err := cmd.Process.Signal(os.Interrupt); err != nil {
-				log.Println("Error enviando SIGINT:", err)
-				// // Si falla, intenta con Kill()
-				// if err := cmd.Process.Kill(); err != nil {
-				// 	log.Println("Error al matar proceso:", err)
-				// }
-			}
+			// if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			// 	log.Println("Error enviando SIGINT:", err)
+			// 	// // Si falla, intenta con Kill()
+			// 	// if err := cmd.Process.Kill(); err != nil {
+			// 	// 	log.Println("Error al matar proceso:", err)
+			// 	// }
+			// }
 
 			// Esperar a que el proceso termine
-			if err := cmd.Wait(); err != nil {
-				if exiterr, ok := err.(*exec.ExitError); ok {
-					log.Printf("Proceso terminado (código %d)\n", exiterr.ExitCode())
-				} else {
-					log.Println("Error esperando proceso:", err)
-				}
-			}
+			// if err := cmd.Wait(); err != nil {
+			// 	if exiterr, ok := err.(*exec.ExitError); ok {
+			// 		log.Printf("Proceso terminado (código %d)\n", exiterr.ExitCode())
+			// 	} else {
+			// 		log.Println("Error esperando proceso:", err)
+			// 	}
+			// }
 
 			log.Println("Servidor detenido.")
 		}
