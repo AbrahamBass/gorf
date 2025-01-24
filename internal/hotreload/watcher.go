@@ -5,7 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
+
+	// "syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -52,8 +53,8 @@ func HotReload(mainFile string) {
 			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
 
 			// Enviar SIGTERM
-			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-				log.Println("Error enviando SIGTERM:", err)
+			if err := cmd.Process.Kill(); err != nil {
+				log.Println("Error al detener el proceso:", err)
 			}
 
 			// Esperar a que el proceso termine
