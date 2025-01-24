@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	// "syscall"
+	"net"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -40,12 +41,18 @@ func HotReload(mainFile string) {
 	)
 
 	startProcess := func() {
+		if !isPortAvailable("8080") {
+			log.Println("Esperando a que el puerto 8080 se libere...")
+			time.Sleep(1000 * time.Millisecond)
+		}
+
 		cmd = exec.Command("go", "run", mainFile)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			log.Println("Error al iniciar proceso:", err)
 		}
+		log.Println("Servidor iniciado con PID:", cmd.Process.Pid)
 	}
 
 	stopProcess := func() {
@@ -59,7 +66,11 @@ func HotReload(mainFile string) {
 
 			// Esperar a que el proceso termine
 			if err := cmd.Wait(); err != nil {
-				log.Println("Error esperando proceso:", err)
+				if exiterr, ok := err.(*exec.ExitError); ok {
+					log.Printf("Proceso terminado (código %d)\n", exiterr.ExitCode())
+				} else {
+					log.Println("Error esperando proceso:", err)
+				}
 			}
 
 			log.Println("Servidor detenido.")
@@ -71,7 +82,7 @@ func HotReload(mainFile string) {
 	go func() {
 		var (
 			debounceTimer    *time.Timer
-			debounceDuration = 500 * time.Millisecond // Tiempo de debounce
+			debounceDuration = 800 * time.Millisecond // Tiempo de debounce
 		)
 
 		for {
@@ -85,6 +96,7 @@ func HotReload(mainFile string) {
 			// Iniciar un nuevo temporizador
 			debounceTimer = time.AfterFunc(debounceDuration, func() {
 				stopProcess()
+				time.Sleep(1000 * time.Millisecond) // Esperar liberación de puerto
 				startProcess()
 			})
 		}
@@ -107,4 +119,13 @@ func HotReload(mainFile string) {
 		}
 	}
 
+}
+
+func isPortAvailable(port string) bool {
+	conn, err := net.DialTimeout("tcp", "localhost:"+port, 500*time.Millisecond)
+	if err != nil {
+		return true
+	}
+	conn.Close()
+	return false
 }
