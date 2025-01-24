@@ -65,17 +65,29 @@ func HotReload(mainFile string) {
 			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
 
 			// Enviar SIGTERM
-			// if err := cmd.Process.Kill(); err != nil {
-			// 	log.Println("Error al detener el proceso:", err)
-			// }
-
-			if err := cmd.Process.Signal(os.Interrupt); err != nil {
-				log.Println("Error enviando SIGINT:", err)
-				// Si falla, intenta con Kill()
-				if err := cmd.Process.Kill(); err != nil {
-					log.Println("Error al matar proceso:", err)
-				}
+			if err := cmd.Process.Kill(); err != nil {
+				log.Println("Error al detener el proceso:", err)
 			}
+
+			time.Sleep(1 * time.Second)
+
+			// Fuerza liberación del puerto con SetLinger
+			killCmd := exec.Command("cmd", "/C",
+				"FOR /F \"tokens=5\" %i IN ('netstat -ano ^| findstr :8080') DO taskkill /F /PID %i")
+
+			time.Sleep(1 * time.Second)
+
+			if err := killCmd.Run(); err != nil {
+				log.Println("Error al matar procesos residuales:", err)
+			}
+
+			// if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			// 	log.Println("Error enviando SIGINT:", err)
+			// 	// Si falla, intenta con Kill()
+			// 	if err := cmd.Process.Kill(); err != nil {
+			// 		log.Println("Error al matar proceso:", err)
+			// 	}
+			// }
 
 			// Esperar a que el proceso termine
 			if err := cmd.Wait(); err != nil {
@@ -143,11 +155,11 @@ func HotReload(mainFile string) {
 }
 
 func isPortAvailable(port string) bool {
-	conn, err := net.DialTimeout("tcp", "localhost:"+port, 500*time.Millisecond)
+	// Intentar abrir el puerto directamente
+	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		return true
+		return false
 	}
-	conn.Close()
-	time.Sleep(500 * time.Millisecond)
-	return false
+	defer listener.Close()
+	return true
 }
