@@ -65,8 +65,16 @@ func HotReload(mainFile string) {
 			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
 
 			// Enviar SIGTERM
-			if err := cmd.Process.Kill(); err != nil {
-				log.Println("Error al detener el proceso:", err)
+			// if err := cmd.Process.Kill(); err != nil {
+			// 	log.Println("Error al detener el proceso:", err)
+			// }
+
+			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				log.Println("Error enviando SIGINT:", err)
+				// Si falla, intenta con Kill()
+				if err := cmd.Process.Kill(); err != nil {
+					log.Println("Error al matar proceso:", err)
+				}
 			}
 
 			// Esperar a que el proceso termine
