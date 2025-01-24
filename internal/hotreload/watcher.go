@@ -41,18 +41,23 @@ func HotReload(mainFile string) {
 	)
 
 	startProcess := func() {
-		if !isPortAvailable("8080") {
-			log.Println("Esperando a que el puerto 8080 se libere...")
-			time.Sleep(1000 * time.Millisecond)
+		maxRetries := 3
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			if isPortAvailable("8080") {
+				cmd = exec.Command("go", "run", mainFile)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Start(); err != nil {
+					log.Println("Error al iniciar proceso:", err)
+					return
+				}
+				log.Println("Servidor iniciado con PID:", cmd.Process.Pid)
+				return
+			}
+			log.Printf("Intento %d: puerto 8080 ocupado\n", attempt)
+			time.Sleep(time.Duration(attempt) * time.Second)
 		}
-
-		cmd = exec.Command("go", "run", mainFile)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Start(); err != nil {
-			log.Println("Error al iniciar proceso:", err)
-		}
-		log.Println("Servidor iniciado con PID:", cmd.Process.Pid)
+		log.Fatal("No se pudo iniciar el servidor después de 3 intentos")
 	}
 
 	stopProcess := func() {
@@ -82,11 +87,18 @@ func HotReload(mainFile string) {
 	go func() {
 		var (
 			debounceTimer    *time.Timer
-			debounceDuration = 800 * time.Millisecond // Tiempo de debounce
+			debounceDuration = 1500 * time.Millisecond // Tiempo de debounce
+			isRestarting     bool
 		)
 
 		for {
 			<-restartCh
+
+			if isRestarting {
+				continue
+			}
+
+			isRestarting = true
 
 			// Si ya hay un temporizador en marcha, detenerlo
 			if debounceTimer != nil {
@@ -96,8 +108,9 @@ func HotReload(mainFile string) {
 			// Iniciar un nuevo temporizador
 			debounceTimer = time.AfterFunc(debounceDuration, func() {
 				stopProcess()
-				time.Sleep(1000 * time.Millisecond) // Esperar liberación de puerto
+				time.Sleep(3 * time.Second) // Esperar liberación de puerto
 				startProcess()
+				isRestarting = false
 			})
 		}
 	}()
@@ -127,5 +140,6 @@ func isPortAvailable(port string) bool {
 		return true
 	}
 	conn.Close()
+	time.Sleep(500 * time.Millisecond)
 	return false
 }
