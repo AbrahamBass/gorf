@@ -49,27 +49,49 @@ func HotReload(mainFile string) {
 
 	stopProcess := func() {
 		if cmd != nil && cmd.Process != nil {
-			// Enviar SIGTERM y esperar
-			cmd.Process.Signal(syscall.SIGTERM)
-			cmd.Wait()
+			log.Println("Deteniendo servidor con PID:", cmd.Process.Pid)
+
+			// Enviar SIGTERM
+			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+				log.Println("Error enviando SIGTERM:", err)
+			}
+
+			// Esperar a que el proceso termine
+			if err := cmd.Wait(); err != nil {
+				log.Println("Error esperando proceso:", err)
+			}
+
+			log.Println("Servidor detenido.")
 		}
 	}
 
 	startProcess()
 
 	go func() {
+		var (
+			debounceTimer    *time.Timer
+			debounceDuration = 500 * time.Millisecond // Tiempo de debounce
+		)
+
 		for {
 			<-restartCh
-			stopProcess()
-			startProcess()
-			time.Sleep(500 * time.Millisecond) // Tiempo de espera entre reinicios
+
+			// Si ya hay un temporizador en marcha, detenerlo
+			if debounceTimer != nil {
+				debounceTimer.Stop()
+			}
+
+			// Iniciar un nuevo temporizador
+			debounceTimer = time.AfterFunc(debounceDuration, func() {
+				stopProcess()
+				startProcess()
+			})
 		}
 	}()
 
 	for {
 		select {
 		case event := <-watcher.Events:
-
 			// Solo reiniciar en cambios de escritura o creación
 			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 				log.Println("Cambios detectados en:", event.Name)
